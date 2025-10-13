@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LB Navigator – Minecraft Streckennetz</title>
+  <title>LB Navigator</title>
+
+  <!-- Apple PWA Icon -->
+  <link rel="apple-touch-icon" href="lb-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="LB Navigator" />
+
   <style>
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; color: #222; margin: 0; padding: 0; }
     header { background-color: #c00; color: white; padding: 1em; text-align: center; display:flex; align-items:center; justify-content:center; font-size: 1.5em; }
@@ -49,36 +55,9 @@
 
     <textarea id="linesInput">{
       "lines": [
-        {
-          "id": "RB1",
-          "name": "RB1",
-          "stops": [
-            { "station": "Telnek", "platform": "1" },
-            { "station": "Soul_Society(Süd)", "platform": "1" },
-            { "station": "Soul_Society(HBF)", "platform": "2" },
-            { "station": "LowlightHafen", "platform": "1" },
-            { "station": "Revon", "platform": "1" }
-          ]
-        },
-        {
-          "id": "SKB",
-          "name": "Selketalbahn (SKB)",
-          "stops": [
-            { "station": "Soul_Society(HBF)", "platform": "3" },
-            { "station": "Soul_Society(OST)", "platform": "1" },
-            { "station": "Neustadt(West)", "platform": "1" }
-          ]
-        },
-        {
-          "id": "RB2",
-          "name": "RB2",
-          "stops": [
-            { "station": "Soul_Society(HBF)", "platform": "1" },
-            { "station": "Soul_Society(Nord)", "platform": "1" },
-            { "station": "Heringsdorf Neuhof", "platform": "1" },
-            { "station": "Jungle Viadukt", "platform": "1" }
-          ]
-        }
+        {"id":"RB1","name":"RB1","stops":[{"station":"Telnek","platform":"1"},{"station":"Soul_Society(Süd)","platform":"1"},{"station":"Soul_Society(HBF)","platform":"2"},{"station":"LowlightHafen","platform":"1"},{"station":"Revon","platform":"1"}]},
+        {"id":"SKB","name":"Selketalbahn (SKB)","stops":[{"station":"Soul_Society(HBF)","platform":"3"},{"station":"Soul_Society(OST)","platform":"1"},{"station":"Neustadt(West)","platform":"1"}]},
+        {"id":"RB2","name":"RB2","stops":[{"station":"Soul_Society(HBF)","platform":"1"},{"station":"Soul_Society(Nord)","platform":"1"},{"station":"Heringsdorf Neuhof","platform":"1"},{"station":"Jungle Viadukt","platform":"1"}]}
       ]
     }</textarea>
   </main>
@@ -175,13 +154,8 @@
         out.innerHTML+=`<div class="route-segment" style="border-color:${lineColors[s.line]}">`;
         out.innerHTML+=`<div class="segment-line" style="background:${lineColors[s.line]}">${s.line}</div>`;
         out.innerHTML+=`<div class="main-stop">${s.from} (Gleis ${firstStep.platform}) → ${s.to} (Gleis ${lastStep.platform})</div>`;
-        if(s.intermediate.length>1){
-          const mid=s.intermediate.slice(0,-1);
-          if(mid.length>0) out.innerHTML+=`<div class="intermediate">Zwischenhalte: ${mid.join(', ')}</div>`;
-        }
         out.innerHTML+='</div>';
       }
-      out.innerHTML+=`<p><b>Umstiege:</b> ${best.transfers}</p>`;
     }
 
     window.onload=loadLines;
