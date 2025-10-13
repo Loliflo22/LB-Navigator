@@ -3,35 +3,49 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LB Navigator – Minecraft Streckennetz</title>
+  <title>LB Navigator</title>
   <style>
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; color: #222; margin: 0; padding: 0; }
     header { background-color: #c00; color: white; padding: 1em; text-align: center; font-size: 1.5em; display:flex; align-items:center; justify-content:center; }
-    header img { height: 40px; margin-right: 0.5em; }
+    .logo { background:white; color:#c00; font-weight:bold; font-size:1.2em; padding:0.2em 0.6em; margin-right:0.5em; border-radius:2px; font-family:Arial, sans-serif; }
     main { padding: 1em 2em; }
-    input { padding:0.5em; margin:0.2em; border-radius:6px; border:1px solid #ccc; }
-    button { background:#c00; color:white; border:none; padding:0.5em 1em; border-radius:6px; cursor:pointer; margin:0.2em; }
+    input { width: 100%; padding:0.5em; margin:0.2em 0; border-radius:6px; border:1px solid #ccc; box-sizing:border-box; }
+    .button-row { display:flex; gap:0.5em; margin-top:0.5em; }
+    button { background:#c00; color:white; border:none; padding:0.5em 1em; border-radius:6px; cursor:pointer; flex:1; }
     button:hover { background:#e33; }
     #output { background:white; border-radius:10px; padding:1em; margin-top:1em; box-shadow:0 0 5px rgba(0,0,0,0.2); }
-    .route-segment { margin:0.5em 0; padding:0.5em; border-left:6px solid #c00; background:#fff0f0; border-radius:4px; }
-    .segment-line { font-weight:bold; color:#c00; margin-bottom:0.2em; }
+    .route-segment { display:flex; align-items:center; margin:0.5em 0; padding:0.5em; border-left:6px solid; border-radius:4px; }
+    .segment-line { font-weight:bold; margin-right:1em; width:60px; text-align:center; color:white; padding:0.2em 0; border-radius:3px; }
     .main-stop { font-weight:bold; }
     .intermediate { color:#999; font-size:0.9em; margin-left:1em; }
     .line-list { background:white; padding:1em; border-radius:10px; box-shadow:0 0 5px rgba(0,0,0,0.1); margin-bottom:1em; }
     .line-group { margin-bottom:1em; }
-    .line-group h4 { margin:0.2em 0; color:#c00; }
-    .line-group ul { list-style-type:none; padding-left:1em; margin:0; }
+    .line-group h4 { margin:0.2em 0; color:#c00; cursor:pointer; user-select:none; }
+    .line-group ul { list-style-type:none; padding-left:1em; margin:0; display:none; }
+    .line-group.open ul { display:block; }
     textarea { display:none; }
   </style>
 </head>
 <body>
   <header>
-    <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/DB_Logo.svg" alt="LB Logo" />
+    <div class="logo">LB</div>
     LB Navigator – Minecraft Streckennetz
   </header>
   <main>
     <h3>Linienübersicht:</h3>
     <div id="lineOverview"></div>
+
+    <label>Start:</label>
+    <input id="startStation" placeholder="z.B. Telnek" />
+    <label>Ziel:</label>
+    <input id="endStation" placeholder="z.B. Revon" />
+
+    <div class="button-row">
+      <button onclick="findRoute()">Route finden</button>
+      <button onclick="findRoute(true)">Route (min. Umstiege)</button>
+    </div>
+
+    <div id="output"></div>
 
     <textarea id="linesInput">{
       "lines": [
@@ -67,27 +81,14 @@
         }
       ]
     }</textarea>
-
-    <label>Start: <input id="startStation" placeholder="z.B. Telnek" /></label>
-    <label>Ziel: <input id="endStation" placeholder="z.B. Revon" /></label>
-    <button onclick="findRoute()">Route finden</button>
-    <button onclick="findRoute(true)">Route (min. Umstiege)</button>
-    <div id="output"></div>
   </main>
 
   <script>
     let network = {};
+    const lineColors = { "RB1":"#c00", "RB2":"#0077cc", "SKB":"#009933" };
 
-    function normalizeName(name){
-      return name.toLowerCase().replace(/\s+/g,'').replace(/_/g,'');
-    }
-
-    function findStation(name){
-      const n = normalizeName(name);
-      for(const s in network) if(normalizeName(s)===n) return s;
-      if(n==='soulsociety') return 'Soul_Society(HBF)';
-      return null;
-    }
+    function normalizeName(name){ return name.toLowerCase().replace(/\s+/g,'').replace(/_/g,''); }
+    function findStation(name){ const n = normalizeName(name); for(const s in network) if(normalizeName(s)===n) return s; if(n==='soulsociety') return 'Soul_Society(HBF)'; return null; }
 
     function loadLines(){
       const data = JSON.parse(document.getElementById('linesInput').value);
@@ -113,12 +114,12 @@
         if(!groups[prefix]) groups[prefix]=[];
         groups[prefix].push(l);
       }
-      const div = document.getElementById('lineOverview');
+      const div=document.getElementById('lineOverview');
       div.innerHTML='';
       for(const prefix in groups){
-        const g = document.createElement('div');
-        g.className='line-group';
+        const g=document.createElement('div'); g.className='line-group';
         g.innerHTML=`<h4>🚉 ${prefix}-Linien</h4><ul>${groups[prefix].map(l=>`<li><b>${l.name}</b>: ${l.stops.map(s=>s.station).join(' → ')}</li>`).join('')}</ul>`;
+        g.querySelector('h4').onclick=()=>g.classList.toggle('open');
         div.appendChild(g);
       }
     }
@@ -129,12 +130,12 @@
       const out = document.getElementById('output');
       if(!start || !end){ out.innerHTML='<p>Ungültige Station(en)!</p>'; return; }
 
-      let queue = [{station:start,path:[],visited:new Set(),currentLine:null,transfers:0}];
+      let queue=[{station:start,path:[],visited:new Set(),currentLine:null,transfers:0}];
       let best=null;
-      const visited = new Set();
+      const visited=new Set();
 
       while(queue.length){
-        const cur = queue.shift();
+        const cur=queue.shift();
         if(cur.station===end){
           if(!best||(minTransfers?cur.transfers<best.transfers:cur.path.length<best.path.length)) best=cur;
           continue;
@@ -144,8 +145,8 @@
 
         for(const next of network[cur.station]||[]){
           if(!cur.visited.has(next.to)){
-            const newPath = cur.path.concat({from:cur.station,to:next.to,line:next.line,platform:next.platform});
-            const transfers = cur.currentLine && cur.currentLine!==next.line ? cur.transfers+1 : cur.transfers;
+            const newPath=cur.path.concat({from:cur.station,to:next.to,line:next.line,platform:next.platform});
+            const transfers=cur.currentLine && cur.currentLine!==next.line ? cur.transfers+1 : cur.transfers;
             queue.push({station:next.to,path:newPath,visited:new Set([...cur.visited,cur.station]),currentLine:next.line,transfers});
           }
         }
@@ -153,22 +154,18 @@
 
       if(!best){ out.innerHTML='<p>Keine Route gefunden!</p>'; return; }
 
-      // DB-Style Route
+      // DB-Style grafische Route
       const segments=[];
       let segStart = best.path[0].from;
       let currentLine = best.path[0].line;
       let intermediates=[];
 
       for(let i=0;i<best.path.length;i++){
-        const step = best.path[i];
+        const step=best.path[i];
         if(step.line!==currentLine){
           segments.push({line:currentLine,from:segStart,to:best.path[i-1].to,intermediate:intermediates});
-          segStart = step.from;
-          currentLine = step.line;
-          intermediates=[];
-        }else{
-          intermediates.push(step.to);
-        }
+          segStart=step.from; currentLine=step.line; intermediates=[];
+        }else{ intermediates.push(step.to); }
       }
       segments.push({line:currentLine,from:segStart,to:best.path[best.path.length-1].to,intermediate:intermediates});
 
@@ -176,10 +173,10 @@
       for(const s of segments){
         const firstPlatform = network[s.from].find(n=>n.to===s.intermediate[0]||n.to===s.to)?.platform || '-';
         const lastPlatform = network[s.intermediate[s.intermediate.length-1]]?.find(n=>n.to===s.to)?.platform || '-';
-        out.innerHTML+=`<div class="route-segment"><div class="segment-line">${s.line}</div>`;
+        out.innerHTML+=`<div class="route-segment" style="border-color:${lineColors[s.line]}"><div class="segment-line" style="background:${lineColors[s.line]}">${s.line}</div>`;
         out.innerHTML+=`<div class="main-stop">${s.from} (Gleis ${firstPlatform}) → ${s.to} (Gleis ${lastPlatform})</div>`;
         if(s.intermediate.length>1){
-          const mid = s.intermediate.slice(0,-1);
+          const mid=s.intermediate.slice(0,-1);
           if(mid.length>0) out.innerHTML+=`<div class="intermediate">Zwischenhalte: ${mid.join(', ')}</div>`;
         }
         out.innerHTML+='</div>';
