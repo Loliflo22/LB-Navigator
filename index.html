@@ -148,7 +148,6 @@ if(s.intermediate.length>1){
 const mid=s.intermediate.slice(0,-1);
 if(mid.length>0) out.innerHTML+=`<div class="intermediate">Zwischenhalte: ${mid.join(', ')}</div>`;
 }
-if(firstStep.platformTo!==lastStep.platformFrom) out.innerHTML+=`<div class="intermediate" style="color:red">🟢 Umstieg in ${s.to} – von Gleis ${firstStep.platformTo} auf Gleis ${lastStep.platformFrom}</div>`;
 out.innerHTML+='</div>';
 }
 out.innerHTML+=`<p><b>Umstiege:</b> ${best.transfers}</p>`;
