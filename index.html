@@ -8,12 +8,15 @@
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; color: #222; margin: 0; padding: 0; }
     header { background-color: #111; color: white; padding: 1em; text-align: center; font-size: 1.5em; letter-spacing: 1px; }
     main { padding: 1em 2em; }
-    textarea { width: 100%; height: 200px; display: none; }
+    textarea { display: none; }
+    input { padding: 0.5em; margin: 0.2em; border-radius: 6px; border: 1px solid #ccc; }
     button { background-color: #333; color: white; border: none; padding: 0.5em 1em; cursor: pointer; border-radius: 6px; margin: 0.2em; }
     button:hover { background-color: #555; }
-    input { padding: 0.5em; margin: 0.2em; border-radius: 6px; border: 1px solid #ccc; }
     #output { background-color: white; border-radius: 10px; padding: 1em; margin-top: 1em; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
-    .route-step { margin: 0.5em 0; padding: 0.5em; border-left: 3px solid #333; background-color: #fafafa; }
+    .route-segment { margin: 0.5em 0; padding: 0.5em; background-color: #fafafa; border-left: 4px solid #333; }
+    .segment-line { font-weight: bold; margin-bottom: 0.2em; }
+    .main-stop { font-weight: bold; }
+    .intermediate { color: #999; font-size: 0.9em; margin-left: 1em; }
     .line-list { background: white; padding: 1em; border-radius: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); margin-bottom: 1em; }
     .line-group { margin-bottom: 1em; }
     .line-group h4 { margin: 0.2em 0; }
@@ -68,121 +71,78 @@
     <div id="output"></div>
   </main>
 
-  <script>
-    let network = {};
-    let stationAliases = {};
+<script>
+let network = {};
 
-    function normalizeName(name) {
-      return name.toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
-    }
+function normalizeName(name) {
+  return name.toLowerCase().replace(/\s+/g,'').replace(/_/g,'');
+}
 
-    function equivalentStations(name) {
-      const n = normalizeName(name);
-      if (n === 'soulsociety' || n === 'soulsocietyhbf') return 'Soul_Society(HBF)';
-      return name;
-    }
+function findStation(name) {
+  const normalized = normalizeName(name);
+  for (const station in network) {
+    if (normalizeName(station) === normalized) return station;
+  }
+  if (normalized === 'soulsociety') return 'Soul_Society(HBF)';
+  return null;
+}
 
-    function loadLines() {
-      const data = JSON.parse(document.getElementById('linesInput').value);
-      network = {};
-      for (const line of data.lines) {
-        for (let i = 0; i < line.stops.length; i++) {
-          const stop = line.stops[i].station;
-          if (!network[stop]) network[stop] = [];
-          if (i > 0) {
-            const prev = line.stops[i - 1].station;
-            network[stop].push({ to: prev, line: line.id, platform: line.stops[i].platform });
-            network[prev].push({ to: stop, line: line.id, platform: line.stops[i - 1].platform });
-          }
-        }
-      }
-      renderLineOverview(data.lines);
-    }
-
-    function renderLineOverview(lines) {
-      const groups = {};
-      for (const l of lines) {
-        const prefix = l.id.match(/^[A-Z]+/)[0];
-        if (!groups[prefix]) groups[prefix] = [];
-        groups[prefix].push(l);
-      }
-
-      const div = document.getElementById('lineOverview');
-      div.innerHTML = '';
-      for (const prefix in groups) {
-        const g = document.createElement('div');
-        g.className = 'line-group';
-        g.innerHTML = `<h4>🚉 ${prefix}-Linien</h4><ul>${groups[prefix]
-          .map(l => `<li><b>${l.name}</b>: ${l.stops.map(s => s.station).join(' → ')}</li>`)
-          .join('')}</ul>`;
-        div.appendChild(g);
+function loadLines() {
+  const data = JSON.parse(document.getElementById('linesInput').value);
+  network = {};
+  for (const line of data.lines) {
+    for (let i=0; i<line.stops.length; i++) {
+      const stop = line.stops[i].station;
+      if (!network[stop]) network[stop] = [];
+      if (i>0) {
+        const prev = line.stops[i-1].station;
+        network[stop].push({to: prev, line: line.id, platform: line.stops[i].platform});
+        network[prev].push({to: stop, line: line.id, platform: line.stops[i-1].platform});
       }
     }
+  }
+  renderLineOverview(data.lines);
+}
 
-    function findStation(name) {
-      const normalized = normalizeName(name);
-      for (const station in network) {
-        if (normalizeName(station) === normalized) return station;
-      }
-      // fallback alias (Soul_Society -> Soul_Society(HBF))
-      if (normalized === 'soulsociety') return 'Soul_Society(HBF)';
-      return null;
+function renderLineOverview(lines) {
+  const groups = {};
+  for (const l of lines) {
+    const prefix = l.id.match(/^[A-Z]+/)[0];
+    if (!groups[prefix]) groups[prefix] = [];
+    groups[prefix].push(l);
+  }
+  const div = document.getElementById('lineOverview');
+  div.innerHTML = '';
+  for (const prefix in groups) {
+    const g = document.createElement('div');
+    g.className = 'line-group';
+    g.innerHTML = `<h4>🚉 ${prefix}-Linien</h4><ul>${groups[prefix].map(l=>`<li><b>${l.name}</b>: ${l.stops.map(s=>s.station).join(' → ')}</li>`).join('')}</ul>`;
+    div.appendChild(g);
+  }
+}
+
+function findRoute(minTransfers=false) {
+  const startInput = document.getElementById('startStation').value.trim();
+  const endInput = document.getElementById('endStation').value.trim();
+  const start = findStation(startInput);
+  const end = findStation(endInput);
+  const out = document.getElementById('output');
+  if(!start||!end){ out.innerHTML='<p>Ungültige Station(en)!</p>'; return; }
+
+  let queue=[{station:start,path:[],visited:new Set(),currentLine:null,transfers:0}];
+  let best=null; const visited=new Set();
+
+  while(queue.length){
+    const cur = queue.shift();
+    if(cur.station===end){
+      if(!best||(minTransfers?cur.transfers<best.transfers:cur.path.length<best.path.length)) best=cur;
+      continue;
     }
+    if(visited.has(cur.station)) continue;
+    visited.add(cur.station);
 
-    function findRoute(minTransfers = false) {
-      const startInput = document.getElementById('startStation').value.trim();
-      const endInput = document.getElementById('endStation').value.trim();
-
-      const start = findStation(startInput);
-      const end = findStation(endInput);
-
-      const out = document.getElementById('output');
-      if (!start || !end) {
-        out.innerHTML = '<p>Ungültige Station(en)!</p>';
-        return;
-      }
-
-      let queue = [{ station: start, path: [], visited: new Set(), currentLine: null, transfers: 0 }];
-      let best = null;
-      const visited = new Set();
-
-      while (queue.length) {
-        const cur = queue.shift();
-        if (cur.station === end) {
-          if (!best || (minTransfers ? cur.transfers < best.transfers : cur.path.length < best.path.length)) best = cur;
-          continue;
-        }
-        if (visited.has(cur.station)) continue;
-        visited.add(cur.station);
-
-        for (const next of network[cur.station] || []) {
-          if (!cur.visited.has(next.to)) {
-            const newPath = cur.path.concat({ from: cur.station, to: next.to, line: next.line, platform: next.platform });
-            const transfers = cur.currentLine && cur.currentLine !== next.line ? cur.transfers + 1 : cur.transfers;
-            queue.push({ station: next.to, path: newPath, visited: new Set([...cur.visited, cur.station]), currentLine: next.line, transfers });
-          }
-        }
-      }
-
-      if (!best) {
-        out.innerHTML = '<p>Keine Route gefunden!</p>';
-        return;
-      }
-
-      out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
-      let lastLine = null;
-      for (const step of best.path) {
-        if (step.line !== lastLine) {
-          out.innerHTML += `<div class='route-step'><b>${step.line}</b> – ${step.from} (Gleis ${step.platform}) → ${step.to}</div>`;
-          lastLine = step.line;
-        } else {
-          out.innerHTML += `<div class='route-step'>${step.from} → ${step.to}</div>`;
-        }
-      }
-      out.innerHTML += `<p><b>Umstiege:</b> ${best.transfers}</p>`;
-    }
-
-    window.onload = loadLines;
-  </script>
-</body>
-</html>
+    for(const next of network[cur.station]||[]){
+      if(!cur.visited.has(next.to)){
+        const newPath=cur.path.concat({from:cur.station,to:next.to,line:next.line,platform:next.platform});
+        const transfers=cur.currentLine && cur.currentLine!==next.line?cur.transfers+1:cur.transfers;
+        queue.push({station:
