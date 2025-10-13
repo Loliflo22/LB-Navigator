@@ -8,18 +8,24 @@
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; color: #222; margin: 0; padding: 0; }
     header { background-color: #111; color: white; padding: 1em; text-align: center; font-size: 1.5em; letter-spacing: 1px; }
     main { padding: 1em 2em; }
-    textarea { width: 100%; height: 200px; }
+    textarea { width: 100%; height: 200px; display: none; }
     button { background-color: #333; color: white; border: none; padding: 0.5em 1em; cursor: pointer; border-radius: 6px; margin: 0.2em; }
     button:hover { background-color: #555; }
     input { padding: 0.5em; margin: 0.2em; border-radius: 6px; border: 1px solid #ccc; }
     #output { background-color: white; border-radius: 10px; padding: 1em; margin-top: 1em; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
     .route-step { margin: 0.5em 0; padding: 0.5em; border-left: 3px solid #333; background-color: #fafafa; }
+    .line-list { background: white; padding: 1em; border-radius: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); margin-bottom: 1em; }
+    .line-group { margin-bottom: 1em; }
+    .line-group h4 { margin: 0.2em 0; }
+    .line-group ul { list-style-type: none; padding-left: 1em; margin: 0; }
   </style>
 </head>
 <body>
   <header>🚆 LB Navigator – Minecraft Streckennetz</header>
   <main>
-    <h3>Liniennetz (JSON):</h3>
+    <h3>Linienübersicht:</h3>
+    <div id="lineOverview"></div>
+
     <textarea id="linesInput">{
   "lines": [
     {
@@ -54,46 +60,88 @@
     }
   ]
 }</textarea>
-    <br />
-    <button onclick="loadLines()">Linien laden & Indexieren</button>
-    <br /><br />
+
     <label>Start: <input id="startStation" placeholder="z.B. Telnek" /></label>
     <label>Ziel: <input id="endStation" placeholder="z.B. Revon" /></label>
     <button onclick="findRoute()">Route finden</button>
     <button onclick="findRoute(true)">Route (min. Umstiege)</button>
     <div id="output"></div>
   </main>
+
   <script>
     let network = {};
+    let stationAliases = {};
+
+    function normalizeName(name) {
+      return name.toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
+    }
+
+    function equivalentStations(name) {
+      const n = normalizeName(name);
+      if (n === 'soulsociety' || n === 'soulsocietyhbf') return 'Soul_Society(HBF)';
+      return name;
+    }
 
     function loadLines() {
-      try {
-        const data = JSON.parse(document.getElementById('linesInput').value);
-        network = {};
-        for (const line of data.lines) {
-          for (let i = 0; i < line.stops.length; i++) {
-            const stop = line.stops[i].station;
-            if (!network[stop]) network[stop] = [];
-            if (i > 0) {
-              const prev = line.stops[i - 1].station;
-              network[stop].push({ to: prev, line: line.id, platform: line.stops[i].platform });
-              network[prev].push({ to: stop, line: line.id, platform: line.stops[i - 1].platform });
-            }
+      const data = JSON.parse(document.getElementById('linesInput').value);
+      network = {};
+      for (const line of data.lines) {
+        for (let i = 0; i < line.stops.length; i++) {
+          const stop = line.stops[i].station;
+          if (!network[stop]) network[stop] = [];
+          if (i > 0) {
+            const prev = line.stops[i - 1].station;
+            network[stop].push({ to: prev, line: line.id, platform: line.stops[i].platform });
+            network[prev].push({ to: stop, line: line.id, platform: line.stops[i - 1].platform });
           }
         }
-        alert('Liniennetz erfolgreich geladen!');
-      } catch (e) {
-        alert('Fehler beim Laden des Liniennetzes: ' + e);
+      }
+      renderLineOverview(data.lines);
+    }
+
+    function renderLineOverview(lines) {
+      const groups = {};
+      for (const l of lines) {
+        const prefix = l.id.match(/^[A-Z]+/)[0];
+        if (!groups[prefix]) groups[prefix] = [];
+        groups[prefix].push(l);
+      }
+
+      const div = document.getElementById('lineOverview');
+      div.innerHTML = '';
+      for (const prefix in groups) {
+        const g = document.createElement('div');
+        g.className = 'line-group';
+        g.innerHTML = `<h4>🚉 ${prefix}-Linien</h4><ul>${groups[prefix]
+          .map(l => `<li><b>${l.name}</b>: ${l.stops.map(s => s.station).join(' → ')}</li>`)
+          .join('')}</ul>`;
+        div.appendChild(g);
       }
     }
 
+    function findStation(name) {
+      const normalized = normalizeName(name);
+      for (const station in network) {
+        if (normalizeName(station) === normalized) return station;
+      }
+      // fallback alias (Soul_Society -> Soul_Society(HBF))
+      if (normalized === 'soulsociety') return 'Soul_Society(HBF)';
+      return null;
+    }
+
     function findRoute(minTransfers = false) {
-      const start = document.getElementById('startStation').value.trim();
-      const end = document.getElementById('endStation').value.trim();
-      if (!network[start] || !network[end]) {
-        document.getElementById('output').innerHTML = '<p>Ungültige Station(en)!</p>';
+      const startInput = document.getElementById('startStation').value.trim();
+      const endInput = document.getElementById('endStation').value.trim();
+
+      const start = findStation(startInput);
+      const end = findStation(endInput);
+
+      const out = document.getElementById('output');
+      if (!start || !end) {
+        out.innerHTML = '<p>Ungültige Station(en)!</p>';
         return;
       }
+
       let queue = [{ station: start, path: [], visited: new Set(), currentLine: null, transfers: 0 }];
       let best = null;
       const visited = new Set();
@@ -116,7 +164,6 @@
         }
       }
 
-      const out = document.getElementById('output');
       if (!best) {
         out.innerHTML = '<p>Keine Route gefunden!</p>';
         return;
@@ -134,6 +181,8 @@
       }
       out.innerHTML += `<p><b>Umstiege:</b> ${best.transfers}</p>`;
     }
+
+    window.onload = loadLines;
   </script>
 </body>
 </html>
