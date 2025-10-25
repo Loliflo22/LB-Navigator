@@ -55,19 +55,61 @@
 
     <textarea id="linesInput">{
       "lines": [
-        {"id":"RB1","name":"RB1","stops":[{"station":"Telnek","platform":"1"},{"station":"Soul_Society(Süd)","platform":"1"},{"station":"Soul_Society(HBF)","platform":"2"},{"station":"LowlightHafen","platform":"1"},{"station":"Revon","platform":"1"}]},
-        {"id":"SKB","name":"Selketalbahn (SKB)","stops":[{"station":"Soul_Society(HBF)","platform":"3"},{"station":"Soul_Society(OST)","platform":"1"},{"station":"Neustadt(West)","platform":"1"}]},
-        {"id":"RB2","name":"RB2","stops":[{"station":"Soul_Society(HBF)","platform":"1"},{"station":"Soul_Society(Nord)","platform":"1"},{"station":"Heringsdorf Neuhof","platform":"1"},{"station":"Jungle Viadukt","platform":"1"}]}
+        {
+          "id": "RB1",
+          "name": "RB1",
+          "stops": [
+            {"station":"Telnek","platform":"1"},
+            {"station":"Soul_Society(Süd)","platform":"1"},
+            {"station":"Soul_Society(HBF)","platform":"2"},
+            {"station":"LowlightHafen","platform":"1"},
+            {"station":"Revon","platform":"1"}
+          ]
+        },
+        {
+          "id": "SKB",
+          "name": "Selketalbahn (SKB)",
+          "stops": [
+            {"station":"Soul_Society(HBF)","platform":"3"},
+            {"station":"Soul_Society(OST)","platform":"1"},
+            {"station":"Neustadt(West)","platform":"1"}
+          ]
+        },
+        {
+          "id": "RB2",
+          "name": "RB2",
+          "stops": [
+            {"station":"Soul_Society(HBF)","platform":"1"},
+            {"station":"Soul_Society(Nord)","platform":"1"},
+            {"station":"Heringsdorf","platform":"1"}
+          ]
+        },
+        {
+          "id": "RB3",
+          "name": "RB3",
+          "stops": [
+            {"station":"Heringsdorf","platform":"2"},
+            {"station":"Jungle Viadukt","platform":"1"},
+            {"station":"Herrnburg","platform":"1"},
+            {"station":"Puttgarden","platform":"1"}
+          ]
+        }
       ]
     }</textarea>
   </main>
 
   <script>
     let network = {};
-    const lineColors = { "RB1":"#c00", "RB2":"#0077cc", "SKB":"#009933" };
+    const lineColors = { "RB1":"#c00", "RB2":"#0077cc", "RB3":"#ff8800", "SKB":"#009933" };
 
     function normalizeName(name){ return name.toLowerCase().replace(/\s+/g,'').replace(/_/g,''); }
-    function findStation(name){ const n = normalizeName(name); for(const s in network) if(normalizeName(s)===n) return s; if(n==='soulsociety') return 'Soul_Society(HBF)'; return null; }
+    function findStation(name){
+      const n = normalizeName(name);
+      for(const s in network)
+        if(normalizeName(s)===n) return s;
+      if(n==='soulsociety') return 'Soul_Society(HBF)';
+      return null;
+    }
 
     function loadLines(){
       const data = JSON.parse(document.getElementById('linesInput').value);
