@@ -122,7 +122,6 @@
     function loadLines(){
       const data = JSON.parse(document.getElementById('linesInput').value);
 
-      // Graph mit korrektem from/to Gleis
       network = {};
       for(const line of data.lines){
         for(let i=0;i<line.stops.length;i++){
@@ -131,7 +130,6 @@
           if(i>0){
             const prev = line.stops[i-1];
 
-            // prev -> cur
             network[prev.station].push({
               to: cur.station,
               line: line.id,
@@ -139,7 +137,6 @@
               platformTo: cur.platform
             });
 
-            // cur -> prev
             network[cur.station].push({
               to: prev.station,
               line: line.id,
@@ -171,8 +168,7 @@
     }
 
     // Dijkstra auf State: (station, currentLine, usedM)
-    // Kosten: transfers*W + steps
-    function dijkstra(start, end, { transferWeight=1000, requireMetronom=false } = {}) {
+    function dijkstra(start, end, { transferWeight=1000, requireMetronom=false, forbidMetronom=false } = {}) {
       const dist = new Map();
       const prev = new Map();
       const pq = [];
@@ -185,7 +181,6 @@
 
       function pushState(state){
         pq.push(state);
-        // simple insertion sort-ish: keep small (networks are tiny)
         pq.sort((a,b)=>a.cost-b.cost);
       }
 
@@ -196,11 +191,12 @@
         if(!bestHere || bestHere.cost !== cur.cost) continue;
 
         if(cur.station === end && (!requireMetronom || cur.usedM)){
-          // best reached
           return { endKey: curKey, prev, dist };
         }
 
         for(const e of (network[cur.station] || [])){
+          if(forbidMetronom && e.line === "M") continue;
+
           const nextLine = e.line;
           const nextUsedM = cur.usedM || (nextLine === "M");
           const transferInc = (cur.line && cur.line !== nextLine) ? 1 : 0;
@@ -223,7 +219,6 @@
     }
 
     function reconstruct(result){
-      // finde echten EndKey: schon im result
       const { endKey, prev, dist } = result;
       const meta = dist.get(endKey);
       const pathEdges = [];
@@ -276,7 +271,7 @@
       for(const s of segments){
         const first = s.edges[0];
         const last = s.edges[s.edges.length-1];
-        const mids = s.edges.slice(0,-1).map(x=>x.toStation); // Zwischenhalte (ohne Endziel)
+        const mids = s.edges.slice(0,-1).map(x=>x.toStation);
 
         out.innerHTML += `<div class="route-segment" style="border-color:${lineColors[s.line] || '#999'}">`;
         out.innerHTML += `<div class="segment-line" style="background:${lineColors[s.line] || '#999'}">${s.line}</div>`;
@@ -298,27 +293,21 @@
       const out = document.getElementById('output');
       if(!start || !end){ out.innerHTML='<p>Ungültige Station(en)!</p>'; return; }
 
-      // 1) Empfohlen: min transfers zuerst (immer)
-      // transferWeight hoch => Umstiege extrem teuer
-      const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false });
+      // ✅ EMPFOHLEN: OHNE METRONOM
+      const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
       if(!mainRes){ out.innerHTML='<p>Keine Route gefunden!</p>'; return; }
       const mainRoute = reconstruct(mainRes);
 
-      // 2) Alternative: Route MIT Metronom (falls möglich)
-      // Hier ebenfalls eher wenig Umstiege, aber muss M enthalten
-      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true });
+      // ✅ ALTERNATIVE: MIT METRONOM (optional)
+      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false });
       const metroRoute = metroRes ? reconstruct(metroRes) : null;
-
-      // Optionaler Button "Route (min. Umstiege)" – bleibt, aber identisch zur Empfehlung:
-      // forceMinTransfers ist hier egal, weil unsere Empfehlung bereits so arbeitet.
-      // (wir lassen es aber drin, damit deine UI nicht geändert wird)
 
       out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
 
       renderRoute(
         out,
         "Empfohlen",
-        "Wenig Umstiege (Standard)",
+        "Standard (ohne Metronom)",
         mainRoute,
         !!metroRoute
       );
