@@ -288,40 +288,39 @@
     }
 
     function findRoute(forceMinTransfers=false){
-      const start = findStation(document.getElementById('startStation').value.trim());
-      const end = findStation(document.getElementById('endStation').value.trim());
-      const out = document.getElementById('output');
-      if(!start || !end){ out.innerHTML='<p>Ungültige Station(en)!</p>'; return; }
+    const start = findStation(document.getElementById('startStation').value.trim());
+    const end = findStation(document.getElementById('endStation').value.trim());
+    const out = document.getElementById('output');
+    if(!start || !end){ out.innerHTML='<p>Ungültige Station(en)!</p>'; return; }
 
-      // ✅ EMPFOHLEN: OHNE METRONOM
-      const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
-      if(!mainRes){ out.innerHTML='<p>Keine Route gefunden!</p>'; return; }
-      const mainRoute = reconstruct(mainRes);
+  // 1) Standard: OHNE Metronom
+    const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
+    const mainRoute = mainRes ? reconstruct(mainRes) : null;
 
-      // ✅ ALTERNATIVE: MIT METRONOM (optional)
-      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false });
-      const metroRoute = metroRes ? reconstruct(metroRes) : null;
+  // 2) Alternative: MIT Metronom
+    const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false });
+    const metroRoute = metroRes ? reconstruct(metroRes) : null;
 
-      out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
+  // Wenn GAR NICHTS geht
+    if(!mainRoute && !metroRoute){
+      out.innerHTML = `<h3>Route von ${start} nach ${end}</h3><p>Keine Route gefunden!</p>`;
+      return;
+  }
 
-      renderRoute(
-        out,
-        "Empfohlen",
-        "Standard (ohne Metronom)",
-        mainRoute,
-        !!metroRoute
-      );
+    out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
 
+  // Fall A: Standard gefunden → Standard = Empfohlen, Metronom = Alternative
+    if(mainRoute){
+      renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, !!metroRoute);
       if(metroRoute){
-        renderRoute(
-          out,
-          "Alternative",
-          "Mit Metronom (optional)",
-          metroRoute,
-          false
-        );
+        renderRoute(out, "Alternative", "Mit Metronom (optional)", metroRoute, false);
       }
+      return;
     }
+
+  // Fall B: Standard NICHT gefunden → Metronom wird Empfohlen
+    renderRoute(out, "Empfohlen", "Mit Metronom (weil Standard nicht verfügbar)", metroRoute, false);
+  }
 
     window.onload = loadLines;
   </script>
