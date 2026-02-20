@@ -108,11 +108,8 @@
 
   <script>
     let network = {};
-
-    // Farbschema: RB = rot, Metronom = gelb, RE6 = lila
     const lineColors = { "RB1":"#c00", "RB3":"#c00", "M":"#ffcc00", "RE6":"#6a00ff" };
 
-    // -------- tolerant input (normalize + alias + fuzzy) --------
     function normalizeName(name){
       return (name || "")
         .toLowerCase()
@@ -126,13 +123,9 @@
       "soulsociety": "Soul_Society(HBF)",
       "society": "Soul_Society(HBF)",
       "hbf": "Soul_Society(HBF)",
-
-      // Wunsch: timmendorf -> timmendorf(park)
       "timmendorf": "Timmendorf(Park)",
       "timmendorfpark": "Timmendorf(Park)",
       "timmendorferpark": "Timmendorf(Park)",
-
-      // optional kleine Helfer
       "swinemuende": "Swinoujscie (Swinemünde)",
       "swinoujscie": "Swinoujscie (Swinemünde)"
     };
@@ -162,16 +155,12 @@
 
     function findStation(input){
       const n = normalizeName(input);
-
-      // 1) Alias (hart)
       if(stationAliases[n]) return stationAliases[n];
 
-      // 2) Exakt (normalize)
       for(const s in network){
         if(normalizeName(s) === n) return s;
       }
 
-      // 3) Fuzzy best match
       let bestStation = null;
       let bestScore = Infinity;
 
@@ -184,18 +173,14 @@
         }
       }
 
-      // Schwelle: kurze Eingaben sollen nicht random matchen
       const maxAllowed = Math.max(1, Math.floor(n.length * 0.25));
       if(bestStation && bestScore <= maxAllowed) return bestStation;
-
       return null;
     }
-    // -----------------------------------------------------------
 
     function loadLines(){
       const data = JSON.parse(document.getElementById('linesInput').value);
 
-      // Graph mit korrektem from/to Gleis
       network = {};
       for(const line of data.lines){
         for(let i=0;i<line.stops.length;i++){
@@ -204,7 +189,6 @@
           if(i>0){
             const prev = line.stops[i - 1];
 
-            // prev -> cur
             network[prev.station].push({
               to: cur.station,
               line: line.id,
@@ -212,7 +196,6 @@
               platformTo: cur.platform
             });
 
-            // cur -> prev
             network[cur.station].push({
               to: prev.station,
               line: line.id,
@@ -247,7 +230,13 @@
     }
 
     // Dijkstra auf State: (station, currentLine, usedM)
-    function dijkstra(start, end, { transferWeight=1000, requireMetronom=false, forbidMetronom=false } = {}) {
+    function dijkstra(start, end, {
+      transferWeight=1000,
+      requireMetronom=false,
+      forbidMetronom=false,
+      preferMetronomTransferAt=null,
+      metronomTransferPenalty=300
+    } = {}) {
       const dist = new Map();
       const prev = new Map();
       const pq = [];
@@ -282,7 +271,20 @@
 
           const nextTransfers = cur.transfers + transferInc;
           const nextSteps = cur.steps + 1;
-          const nextCost = nextTransfers * transferWeight + nextSteps;
+
+          let extraPenalty = 0;
+
+          if(transferInc === 1 && preferMetronomTransferAt){
+            const metronomSwitch =
+              (cur.line === "M" && nextLine !== "M") ||
+              (cur.line !== "M" && nextLine === "M");
+
+            if(metronomSwitch && cur.station !== preferMetronomTransferAt){
+              extraPenalty += metronomTransferPenalty;
+            }
+          }
+
+          const nextCost = nextTransfers * transferWeight + nextSteps + extraPenalty;
 
           const nKey = key(e.to, nextLine, nextUsedM);
           const old = dist.get(nKey);
@@ -365,8 +367,6 @@
       if(showDivider) out.innerHTML += `<div class="divider"></div>`;
     }
 
-    // Standard: OHNE Metronom; Alternative: MIT Metronom
-    // Wenn Standard keine Route findet -> Metronom wird automatisch "Empfohlen"
     function findRoute(forceMinTransfers=false){
       const start = findStation(document.getElementById('startStation').value.trim());
       const end = findStation(document.getElementById('endStation').value.trim());
@@ -380,7 +380,14 @@
       const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
       const mainRoute = mainRes ? reconstruct(mainRes) : null;
 
-      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false });
+      // ✅ Metronom-Route: Umstieg bevorzugt in Soul_Society(HBF)
+      const metroRes = dijkstra(start, end, {
+        transferWeight: 1000,
+        requireMetronom: true,
+        forbidMetronom: false,
+        preferMetronomTransferAt: "Soul_Society(HBF)",
+        metronomTransferPenalty: 300
+      });
       const metroRoute = metroRes ? reconstruct(metroRes) : null;
 
       if(!mainRoute && !metroRoute){
@@ -390,7 +397,6 @@
 
       out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
 
-      // Fall A: Standard gefunden
       if(mainRoute){
         renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, !!metroRoute);
         if(metroRoute){
@@ -399,7 +405,6 @@
         return;
       }
 
-      // Fall B: Standard nicht verfügbar -> Metronom als Empfohlen
       renderRoute(out, "Empfohlen", "Mit Metronom (da diese station nur von Metronom Gmbh angefahren wird)(LB Ticket nicht Gültig)", metroRoute, false);
     }
 
