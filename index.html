@@ -108,28 +108,103 @@
 
   <script>
     let network = {};
+
+    // Farbschema: RB = rot, Metronom = gelb, RE6 = lila
     const lineColors = { "RB1":"#c00", "RB3":"#c00", "M":"#ffcc00", "RE6":"#6a00ff" };
 
-    function normalizeName(name){ return name.toLowerCase().replace(/\s+/g,'').replace(/_/g,''); }
+    // -------- tolerant input (normalize + alias + fuzzy) --------
+    function normalizeName(name){
+      return (name || "")
+        .toLowerCase()
+        .replace(/\s+/g,'')
+        .replace(/_/g,'')
+        .replace(/[()\-.,]/g,'')
+        .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
+    }
 
-    function findStation(name){
-      const n = normalizeName(name);
-      for(const s in network) if(normalizeName(s)===n) return s;
-      if(n==='soulsociety') return 'Soul_Society(HBF)'; // Alias
+    const stationAliases = {
+      "soulsociety": "Soul_Society(HBF)",
+      "society": "Soul_Society(HBF)",
+      "hbf": "Soul_Society(HBF)",
+
+      // Wunsch: timmendorf -> timmendorf(park)
+      "timmendorf": "Timmendorf(Park)",
+      "timmendorfpark": "Timmendorf(Park)",
+      "timmendorferpark": "Timmendorf(Park)",
+
+      // optional kleine Helfer
+      "swinemuende": "Swinoujscie (Swinemünde)",
+      "swinoujscie": "Swinoujscie (Swinemünde)"
+    };
+
+    function levenshtein(a, b){
+      if(a === b) return 0;
+      const m = a.length, n = b.length;
+      if(m === 0) return n;
+      if(n === 0) return m;
+
+      const dp = Array.from({length: m+1}, () => Array(n+1).fill(0));
+      for(let i=0;i<=m;i++) dp[i][0]=i;
+      for(let j=0;j<=n;j++) dp[0][j]=j;
+
+      for(let i=1;i<=m;i++){
+        for(let j=1;j<=n;j++){
+          const cost = a[i-1] === b[j-1] ? 0 : 1;
+          dp[i][j] = Math.min(
+            dp[i-1][j] + 1,
+            dp[i][j-1] + 1,
+            dp[i-1][j-1] + cost
+          );
+        }
+      }
+      return dp[m][n];
+    }
+
+    function findStation(input){
+      const n = normalizeName(input);
+
+      // 1) Alias (hart)
+      if(stationAliases[n]) return stationAliases[n];
+
+      // 2) Exakt (normalize)
+      for(const s in network){
+        if(normalizeName(s) === n) return s;
+      }
+
+      // 3) Fuzzy best match
+      let bestStation = null;
+      let bestScore = Infinity;
+
+      for(const s in network){
+        const sn = normalizeName(s);
+        const d = levenshtein(n, sn);
+        if(d < bestScore){
+          bestScore = d;
+          bestStation = s;
+        }
+      }
+
+      // Schwelle: kurze Eingaben sollen nicht random matchen
+      const maxAllowed = Math.max(1, Math.floor(n.length * 0.25));
+      if(bestStation && bestScore <= maxAllowed) return bestStation;
+
       return null;
     }
+    // -----------------------------------------------------------
 
     function loadLines(){
       const data = JSON.parse(document.getElementById('linesInput').value);
 
+      // Graph mit korrektem from/to Gleis
       network = {};
       for(const line of data.lines){
         for(let i=0;i<line.stops.length;i++){
           const cur = line.stops[i];
           if(!network[cur.station]) network[cur.station] = [];
           if(i>0){
-            const prev = line.stops[i-1];
+            const prev = line.stops[i - 1];
 
+            // prev -> cur
             network[prev.station].push({
               to: cur.station,
               line: line.id,
@@ -137,6 +212,7 @@
               platformTo: cur.platform
             });
 
+            // cur -> prev
             network[cur.station].push({
               to: prev.station,
               line: line.id,
@@ -154,15 +230,18 @@
       const groups = {};
       for(const l of lines){
         const prefix = (l.id.match(/^[A-Z]+/) || ["X"])[0];
-        if(!groups[prefix]) groups[prefix]=[];
+        if(!groups[prefix]) groups[prefix] = [];
         groups[prefix].push(l);
       }
-      const div=document.getElementById('lineOverview');
-      div.innerHTML='';
+      const div = document.getElementById('lineOverview');
+      div.innerHTML = '';
       for(const prefix in groups){
-        const g=document.createElement('div'); g.className='line-group';
-        g.innerHTML=`<h4>🚉 ${prefix}-Linien</h4><ul>${groups[prefix].map(l=>`<li><b>${l.name}</b>: ${l.stops.map(s=>s.station).join(' → ')}</li>`).join('')}</ul>`;
-        g.querySelector('h4').onclick=()=>g.classList.toggle('open');
+        const g = document.createElement('div');
+        g.className = 'line-group';
+        g.innerHTML = `<h4>🚉 ${prefix}-Linien</h4><ul>${groups[prefix]
+          .map(l => `<li><b>${l.name}</b>: ${l.stops.map(s => s.station).join(' → ')}</li>`)
+          .join('')}</ul>`;
+        g.querySelector('h4').onclick = () => g.classList.toggle('open');
         div.appendChild(g);
       }
     }
@@ -214,7 +293,6 @@
           }
         }
       }
-
       return null;
     }
 
@@ -287,40 +365,43 @@
       if(showDivider) out.innerHTML += `<div class="divider"></div>`;
     }
 
+    // Standard: OHNE Metronom; Alternative: MIT Metronom
+    // Wenn Standard keine Route findet -> Metronom wird automatisch "Empfohlen"
     function findRoute(forceMinTransfers=false){
-    const start = findStation(document.getElementById('startStation').value.trim());
-    const end = findStation(document.getElementById('endStation').value.trim());
-    const out = document.getElementById('output');
-    if(!start || !end){ out.innerHTML='<p>Ungültige Station(en)!</p>'; return; }
+      const start = findStation(document.getElementById('startStation').value.trim());
+      const end = findStation(document.getElementById('endStation').value.trim());
+      const out = document.getElementById('output');
 
-  // 1) Standard: OHNE Metronom
-    const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
-    const mainRoute = mainRes ? reconstruct(mainRes) : null;
-
-  // 2) Alternative: MIT Metronom
-    const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false });
-    const metroRoute = metroRes ? reconstruct(metroRes) : null;
-
-  // Wenn GAR NICHTS geht
-    if(!mainRoute && !metroRoute){
-      out.innerHTML = `<h3>Route von ${start} nach ${end}</h3><p>Keine Route gefunden!</p>`;
-      return;
-  }
-
-    out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
-
-  // Fall A: Standard gefunden → Standard = Empfohlen, Metronom = Alternative
-    if(mainRoute){
-      renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, !!metroRoute);
-      if(metroRoute){
-        renderRoute(out, "Alternative", "Mit Metronom (optional)", metroRoute, false);
+      if(!start || !end){
+        out.innerHTML = '<p>Ungültige Station(en)!</p>';
+        return;
       }
-      return;
-    }
 
-  // Fall B: Standard NICHT gefunden → Metronom wird Empfohlen
-    renderRoute(out, "Empfohlen", "Mit Metronom (weil Standard nicht verfügbar)", metroRoute, false);
-  }
+      const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
+      const mainRoute = mainRes ? reconstruct(mainRes) : null;
+
+      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false });
+      const metroRoute = metroRes ? reconstruct(metroRes) : null;
+
+      if(!mainRoute && !metroRoute){
+        out.innerHTML = `<h3>Route von ${start} nach ${end}</h3><p>Keine Route gefunden!</p>`;
+        return;
+      }
+
+      out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
+
+      // Fall A: Standard gefunden
+      if(mainRoute){
+        renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, !!metroRoute);
+        if(metroRoute){
+          renderRoute(out, "Alternative", "Mit Metronom (optional)", metroRoute, false);
+        }
+        return;
+      }
+
+      // Fall B: Standard nicht verfügbar -> Metronom als Empfohlen
+      renderRoute(out, "Empfohlen", "Mit Metronom (weil Standard nicht verfügbar)", metroRoute, false);
+    }
 
     window.onload = loadLines;
   </script>
