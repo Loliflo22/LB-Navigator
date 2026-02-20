@@ -23,11 +23,24 @@
     .button-row { display:flex; gap:0.5em; margin-top:0.5em; }
     button { background:#c00; color:white; border:none; padding:0.5em 1em; border-radius:6px; cursor:pointer; flex:1; }
     button:hover { background:#e33; }
-    #output { background:white; border-radius:10px; padding:1em; margin-top:1em; box-shadow:0 0 5px rgba(0,0,0,0.2); }
+
+    /* Output wrapper (keine Box mehr hier) */
+    #output { margin-top: 1em; }
+
+    /* Neuer: eigener Kasten pro Route (Standard/Alternative) */
+    .result-box {
+      background:white;
+      border-radius:10px;
+      padding:1em;
+      margin-top:1em;
+      box-shadow:0 0 5px rgba(0,0,0,0.2);
+    }
+
     .route-segment { display:flex; flex-direction:column; margin:0.5em 0; padding:0.5em; border-left:6px solid; border-radius:4px; }
     .segment-line { font-weight:bold; margin-bottom:0.2em; padding:0.2em 0; border-radius:3px; color:white; text-align:center; width:60px; }
     .main-stop { font-weight:bold; }
     .intermediate { color:#999; font-size:0.9em; margin-left:1em; }
+
     .line-group { margin-bottom:1em; }
     .line-group h4 { margin:0.2em 0; color:#c00; cursor:pointer; user-select:none; }
     .line-group ul { list-style-type:none; padding-left:1em; margin:0; display:none; }
@@ -117,6 +130,7 @@
     let network = {};
     const lineColors = { "RB1":"#c00", "RB3":"#c00", "M":"#ffcc00", "RE6":"#6a00ff" };
 
+    // -------- tolerant input (normalize + alias + fuzzy) --------
     function normalizeName(name){
       return (name || "")
         .toLowerCase()
@@ -164,6 +178,7 @@
 
     function findStation(input){
       const n = normalizeName(input);
+
       if(stationAliases[n]) return stationAliases[n];
 
       for(const s in network){
@@ -184,8 +199,10 @@
 
       const maxAllowed = Math.max(1, Math.floor(n.length * 0.25));
       if(bestStation && bestScore <= maxAllowed) return bestStation;
+
       return null;
     }
+    // -----------------------------------------------------------
 
     function loadLines(){
       const data = JSON.parse(document.getElementById('linesInput').value);
@@ -349,40 +366,40 @@
       return segments;
     }
 
-    function renderRoute(out, title, subtitle, route, showDivider=false){
+    // ✅ Alternative ausblenden, wenn Ziel schon vor dem Ende auftaucht
+    function routeHasDestinationAsIntermediate(route, endStation){
+      if(!route || !route.pathEdges || route.pathEdges.length < 2) return false;
+      for(let i=0;i<route.pathEdges.length-1;i++){
+        if(route.pathEdges[i].toStation === endStation) return true;
+      }
+      return false;
+    }
+
+    // ✅ Route-Renderer: jetzt in eigenem Kasten (Standard/Alternative getrennt)
+    function renderRouteBox(title, subtitle, route){
       const segments = segmentize(route.pathEdges);
 
-      out.innerHTML += `<div class="route-block">`;
-      out.innerHTML += `<div class="route-title">${title}</div>`;
-      if(subtitle) out.innerHTML += `<div class="route-subtitle">${subtitle}</div>`;
+      let html = `<div class="result-box">`;
+      html += `<div class="route-title">${title}</div>`;
+      if(subtitle) html += `<div class="route-subtitle">${subtitle}</div>`;
 
       for(const s of segments){
         const first = s.edges[0];
         const last = s.edges[s.edges.length-1];
         const mids = s.edges.slice(0,-1).map(x=>x.toStation);
 
-        out.innerHTML += `<div class="route-segment" style="border-color:${lineColors[s.line] || '#999'}">`;
-        out.innerHTML += `<div class="segment-line" style="background:${lineColors[s.line] || '#999'}">${s.line}</div>`;
-        out.innerHTML += `<div class="main-stop">${s.from} (Gleis ${first.platformFrom}) → ${s.to} (Gleis ${last.platformTo})</div>`;
+        html += `<div class="route-segment" style="border-color:${lineColors[s.line] || '#999'}">`;
+        html += `<div class="segment-line" style="background:${lineColors[s.line] || '#999'}">${s.line}</div>`;
+        html += `<div class="main-stop">${s.from} (Gleis ${first.platformFrom}) → ${s.to} (Gleis ${last.platformTo})</div>`;
         if(mids.length > 0){
-          out.innerHTML += `<div class="intermediate">Zwischenhalte: ${mids.join(', ')}</div>`;
+          html += `<div class="intermediate">Zwischenhalte: ${mids.join(', ')}</div>`;
         }
-        out.innerHTML += `</div>`;
+        html += `</div>`;
       }
 
-      out.innerHTML += `<p><b>Umstiege:</b> ${route.transfers}</p>`;
-      out.innerHTML += `</div>`;
-      if(showDivider) out.innerHTML += `<div class="divider"></div>`;
-    }
-
-    // ✅ Wenn das Ziel irgendwo "zu früh" im Pfad auftaucht -> Alternative ausblenden
-    function routeHasDestinationAsIntermediate(route, endStation){
-      if(!route || !route.pathEdges || route.pathEdges.length < 2) return false;
-      // alle Kanten außer der letzten prüfen
-      for(let i=0;i<route.pathEdges.length-1;i++){
-        if(route.pathEdges[i].toStation === endStation) return true;
-      }
-      return false;
+      html += `<p><b>Umstiege:</b> ${route.transfers}</p>`;
+      html += `</div>`;
+      return html;
     }
 
     function findRoute(forceMinTransfers=false){
@@ -391,7 +408,7 @@
       const out = document.getElementById('output');
 
       if(!start || !end){
-        out.innerHTML = '<p>Ungültige Station(en)!</p>';
+        out.innerHTML = '<div class="result-box"><p>Ungültige Station(en)!</p></div>';
         return;
       }
 
@@ -408,23 +425,30 @@
       const metroRoute = metroRes ? reconstruct(metroRes) : null;
 
       if(!mainRoute && !metroRoute){
-        out.innerHTML = `<h3>Route von ${start} nach ${end}</h3><p>Keine Route gefunden!</p>`;
+        out.innerHTML = `<div class="result-box"><h3>Route von ${start} nach ${end}</h3><p>Keine Route gefunden!</p></div>`;
         return;
       }
 
-      out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
+      // Header als kleiner Text oben (ohne eigenen Kasten)
+      out.innerHTML = `<h3 style="margin:0 0 0.5em;">Route von ${start} nach ${end}</h3>`;
 
+      // Standard gefunden -> Standard Kasten
       if(mainRoute){
-        renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, false);
+        out.innerHTML += renderRouteBox("Empfohlen", "Standard (ohne Metronom)", mainRoute);
 
-        // Alternative nur anzeigen, wenn sie nicht "Ziel als Zwischenhalt" enthält
+        // Alternative nur anzeigen, wenn nicht kaputt/loopig
         if(metroRoute && !routeHasDestinationAsIntermediate(metroRoute, end)){
-          renderRoute(out, "Alternative", "Mit Metronom (LB Ticket nicht Gültig für Metronom)", metroRoute, false);
+          out.innerHTML += renderRouteBox("Alternative", "Mit Metronom (LB Ticket nicht Gültig für Metronom)", metroRoute);
         }
         return;
       }
 
-      renderRoute(out, "Empfohlen", "Mit Metronom (da diese station nur von Metronom Gmbh angefahren wird)(LB Ticket nicht Gültig)", metroRoute, false);
+      // Standard nicht verfügbar -> Metronom als Empfohlen Kasten
+      out.innerHTML += renderRouteBox(
+        "Empfohlen",
+        "Mit Metronom (da diese station nur von Metronom Gmbh angefahren wird)(LB Ticket nicht Gültig)",
+        metroRoute
+      );
     }
 
     window.onload = loadLines;
