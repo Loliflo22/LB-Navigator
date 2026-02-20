@@ -394,13 +394,13 @@
       if(mainRoute){
         renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, !!metroRoute);
         if(metroRoute){
-          renderRoute(out, "Alternative", "Mit Metronom (optional)", metroRoute, false);
+          renderRoute(out, "Alternative", "Mit Metronom (LB Ticket nich Gültig für Metronom)", metroRoute, false);
         }
         return;
       }
 
       // Fall B: Standard nicht verfügbar -> Metronom als Empfohlen
-      renderRoute(out, "Empfohlen", "Mit Metronom (da diese station nur von Metronom Gmbh angefahren wird)", metroRoute, false);
+      renderRoute(out, "Empfohlen", "Mit Metronom (da diese station nur von Metronom Gmbh angefahren wird)(LB Ticket nicht Gültig)", metroRoute, false);
     }
 
     window.onload = loadLines;
