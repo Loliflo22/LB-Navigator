@@ -14,6 +14,10 @@
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; color: #222; margin: 0; padding: 0; }
     header { background-color: #c00; color: white; padding: 1em; text-align: center; display:flex; align-items:center; justify-content:center; font-size: 1.5em; }
     .logo { background:white; color:#c00; font-weight:bold; font-size:1.2em; padding:0.2em 0.6em; margin-right:0.5em; border-radius:2px; }
+    .logo-link { text-decoration:none; }
+    .logo-link:visited { color: inherit; }
+    .logo-link:focus { outline: 2px solid rgba(255,255,255,0.6); outline-offset: 3px; border-radius: 2px; }
+
     main { padding: 1em 2em; }
     input { width: 100%; padding:0.5em; margin:0.2em 0; border-radius:6px; border:1px solid #ccc; box-sizing:border-box; }
     .button-row { display:flex; gap:0.5em; margin-top:0.5em; }
@@ -38,9 +42,12 @@
 </head>
 <body>
   <header>
-    <div class="logo">LB</div>
+    <a class="logo-link" href="https://loliflo22.github.io/LowlightsBahn/" title="Zur LowlightBahn Seite">
+      <div class="logo">LB</div>
+    </a>
     LB Navigator
   </header>
+
   <main>
     <h3>Linienübersicht:</h3>
     <div id="lineOverview"></div>
@@ -123,9 +130,11 @@
       "soulsociety": "Soul_Society(HBF)",
       "society": "Soul_Society(HBF)",
       "hbf": "Soul_Society(HBF)",
+
       "timmendorf": "Timmendorf(Park)",
       "timmendorfpark": "Timmendorf(Park)",
       "timmendorferpark": "Timmendorf(Park)",
+
       "swinemuende": "Swinoujscie (Swinemünde)",
       "swinoujscie": "Swinoujscie (Swinemünde)"
     };
@@ -229,7 +238,6 @@
       }
     }
 
-    // Dijkstra auf State: (station, currentLine, usedM)
     function dijkstra(start, end, {
       transferWeight=1000,
       requireMetronom=false,
@@ -367,6 +375,16 @@
       if(showDivider) out.innerHTML += `<div class="divider"></div>`;
     }
 
+    // ✅ Wenn das Ziel irgendwo "zu früh" im Pfad auftaucht -> Alternative ausblenden
+    function routeHasDestinationAsIntermediate(route, endStation){
+      if(!route || !route.pathEdges || route.pathEdges.length < 2) return false;
+      // alle Kanten außer der letzten prüfen
+      for(let i=0;i<route.pathEdges.length-1;i++){
+        if(route.pathEdges[i].toStation === endStation) return true;
+      }
+      return false;
+    }
+
     function findRoute(forceMinTransfers=false){
       const start = findStation(document.getElementById('startStation').value.trim());
       const end = findStation(document.getElementById('endStation').value.trim());
@@ -380,7 +398,6 @@
       const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
       const mainRoute = mainRes ? reconstruct(mainRes) : null;
 
-      // ✅ Metronom-Route: Umstieg bevorzugt in Soul_Society(HBF)
       const metroRes = dijkstra(start, end, {
         transferWeight: 1000,
         requireMetronom: true,
@@ -398,8 +415,10 @@
       out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
 
       if(mainRoute){
-        renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, !!metroRoute);
-        if(metroRoute){
+        renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, false);
+
+        // Alternative nur anzeigen, wenn sie nicht "Ziel als Zwischenhalt" enthält
+        if(metroRoute && !routeHasDestinationAsIntermediate(metroRoute, end)){
           renderRoute(out, "Alternative", "Mit Metronom (LB Ticket nicht Gültig für Metronom)", metroRoute, false);
         }
         return;
