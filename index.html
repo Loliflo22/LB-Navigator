@@ -414,7 +414,7 @@
       const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
       const mainRoute = mainRes ? reconstruct(mainRes) : null;
 
-      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: true });
+      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false });
       const metroRoute = metroRes ? reconstruct(metroRes) : null;
 
       if(!mainRoute && !metroRoute){
