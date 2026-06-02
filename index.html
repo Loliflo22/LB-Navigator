@@ -417,6 +417,9 @@
 
 const mainRoute = mainRes ? reconstruct(mainRes) : null;
 
+      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false, preferMetronomTransferAt: "Soul_Society(HBF)", metronomTransferPenalty: 300 });
+      const metroRoute = metroRes ? reconstruct(metroRes) : null;
+
 if(!mainRoute){
   out.innerHTML = `
     <div class="result-box">
