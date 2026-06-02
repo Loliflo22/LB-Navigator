@@ -415,6 +415,15 @@
   transferWeight: forceMinTransfers ? 10000 : 1000
 });
 
+         const metroRes = dijkstra(start, end, {
+        transferWeight: 1000,
+        requireMetronom: false,
+        forbidMetronom: true,
+        preferMetronomTransferAt: "Soul_Society(HBF)",
+        metronomTransferPenalty: 300
+      });
+      const metroRoute = metroRes ? reconstruct(metroRes) : null;
+
 const mainRoute = mainRes ? reconstruct(mainRes) : null;
 
 if(!mainRoute){
@@ -434,20 +443,10 @@ out.innerHTML += renderRouteBox("Empfohlen", "", mainRoute);
       if(mainRoute){
         out.innerHTML += renderRouteBox("Empfohlen", "Standard (ohne Metronom)", mainRoute);
 
-        // Alternative nur anzeigen, wenn nicht kaputt/loopig
-        if(metroRoute && !routeHasDestinationAsIntermediate(metroRoute, end)){
-          out.innerHTML += renderRouteBox("Alternative", "Mit Metronom (LB Ticket nicht Gültig für Metronom)", metroRoute);
+      
         }
         return;
       }
-
-      // Standard nicht verfügbar -> Metronom als Empfohlen Kasten
-      out.innerHTML += renderRouteBox(
-        "Empfohlen",
-        "Mit Metronom (da diese station nur von Metronom Gmbh angefahren wird)(LB Ticket nicht Gültig)",
-        metroRoute
-      );
-    }
 
     window.onload = loadLines;
   </script>
