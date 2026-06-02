@@ -415,7 +415,7 @@
   transferWeight: forceMinTransfers ? 10000 : 1000
 });
 
-         const metroRes = dijkstra(start, end, {
+     const metroRes = dijkstra(start, end, {
         transferWeight: 1000,
         requireMetronom: false,
         forbidMetronom: true,
@@ -442,10 +442,6 @@ out.innerHTML += renderRouteBox("Empfohlen", "", mainRoute);
       // Standard gefunden -> Standard Kasten
       if(mainRoute){
         out.innerHTML += renderRouteBox("Empfohlen", "Standard (ohne Metronom)", mainRoute);
-
-      
-        }
-        return;
       }
 
     window.onload = loadLines;
