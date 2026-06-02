@@ -257,8 +257,13 @@
       }
     }
 
-    function dijkstra(start, end, {
+     function dijkstra(start, end, {
       transferWeight=1000,
+      requireMetronom=false,
+      forbidMetronom=false,
+      preferMetronomTransferAt=null,
+      metronomTransferPenalty=300
+
 
     } = {}) {
       const dist = new Map();
