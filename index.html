@@ -282,7 +282,31 @@
         const bestHere = dist.get(curKey);
         if(!bestHere || bestHere.cost !== cur.cost) continue;
 
-  
+        if(cur.station === end && (!requireMetronom || cur.usedM)){
+          return { endKey: curKey, prev, dist };
+        }
+
+        for(const e of (network[cur.station] || [])){
+          if(forbidMetronom && e.line === "M") continue;
+
+          const nextLine = e.line;
+          const nextUsedM = cur.usedM || (nextLine === "M");
+          const transferInc = (cur.line && cur.line !== nextLine) ? 1 : 0;
+
+          const nextTransfers = cur.transfers + transferInc;
+          const nextSteps = cur.steps + 1;
+
+          let extraPenalty = 0;
+
+          if(transferInc === 1 && preferMetronomTransferAt){
+            const metronomSwitch =
+              (cur.line === "M" && nextLine !== "M") ||
+              (cur.line !== "M" && nextLine === "M");
+
+            if(metronomSwitch && cur.station !== preferMetronomTransferAt){
+              extraPenalty += metronomTransferPenalty;
+            }
+          }
 
           const nextCost = nextTransfers * transferWeight + nextSteps + extraPenalty;
 
