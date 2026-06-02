@@ -257,13 +257,12 @@
       }
     }
 
-     function dijkstra(start, end, {
+    function dijkstra(start, end, {
       transferWeight=1000,
       requireMetronom=false,
       forbidMetronom=false,
       preferMetronomTransferAt=null,
       metronomTransferPenalty=300
-
 
     } = {}) {
       const dist = new Map();
@@ -416,31 +415,45 @@
         return;
       }
 
-      const mainRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: false, forbidMetronom: true });
-      const mainRoute = mainRes ? reconstruct(mainRes) : null;
+     const mainRes = dijkstra(start, end, {
+  transferWeight: forceMinTransfers ? 10000 : 1000
+});
 
-      const metroRes = dijkstra(start, end, { transferWeight: 1000, requireMetronom: true, forbidMetronom: false });
-      const metroRoute = metroRes ? reconstruct(metroRes) : null;
+const mainRoute = mainRes ? reconstruct(mainRes) : null;
 
-      if(!mainRoute && !metroRoute){
-        out.innerHTML = `<h3>Route von ${start} nach ${end}</h3><p>Keine Route gefunden!</p>`;
-        return;
-      }
+if(!mainRoute){
+  out.innerHTML = `
+    <div class="result-box">
+      <h3>Route von ${start} nach ${end}</h3>
+      <p>Keine Route gefunden!</p>
+    </div>
+  `;
+  return;
+}
 
-      out.innerHTML = `<h3>Route von ${start} nach ${end}</h3>`;
+out.innerHTML = `<h3 style="margin:0 0 0.5em;">Route von ${start} nach ${end}</h3>`;
+out.innerHTML += renderRouteBox("Empfohlen", "", mainRoute);
 
-      // Fall A: Standard gefunden
+      // Standard gefunden -> Standard Kasten
       if(mainRoute){
-        renderRoute(out, "Empfohlen", "Standard (ohne Metronom)", mainRoute, !!metroRoute);
-        if(metroRoute){
-          renderRoute(out, "Alternative", "Mit Metronom (optional)", metroRoute, false);
+        out.innerHTML += renderRouteBox("Empfohlen", "Standard (ohne Metronom)", mainRoute);
+
+        // Alternative nur anzeigen, wenn nicht kaputt/loopig
+        if(metroRoute && !routeHasDestinationAsIntermediate(metroRoute, end)){
+          out.innerHTML += renderRouteBox("Alternative", "Mit Metronom (LB Ticket nicht Gültig für Metronom)", metroRoute);
         }
         return;
       }
 
-      // Fall B: Standard nicht verfügbar -> Metronom als Empfohlen
-      renderRoute(out, "Empfohlen", "Mit Metronom (weil Standard nicht verfügbar)", metroRoute, false);
+      // Standard nicht verfügbar -> Metronom als Empfohlen Kasten
+      out.innerHTML += renderRouteBox(
+        "Empfohlen",
+        "Mit Metronom (da diese station nur von Metronom Gmbh angefahren wird)(LB Ticket nicht Gültig)",
+        metroRoute
+      );
     }
 
     window.onload = loadLines;
   </script>
+</body>
+</html>
